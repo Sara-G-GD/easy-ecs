@@ -1,6 +1,28 @@
 # easy ecs
 A simple, easy to integrate entity-component-system library
 
+## Usage
+To start using easy ecs, you should first call `ecsInit()` to initialize the system. After that, register the basic components and systems that make up your project. Although there is nothing stopping you from registering new systems at any time, it would be advisable to register components at startup only.
+
+Referencing components is a single function call:
+```
+YourComponent = ecsMakeComponentType(sizeof(your_component_c));
+```
+Important to note is the sizeof(..) call. This is because this function only needs to know how much space to allocate for each individual component.
+
+After registering your component types, you can start using them in systems and entities. For example:
+```
+ecsEntityId your_entity = ecsCreateEntity(YourComponent1 | YourCompnent2);
+```
+
+The value returned by `ecsMakeComponentType` is a bitflag identifying the component type. Therefore you can bitwise-OR together a series of component type identifiers to create a 'component mask'.
+
+To enable a system, you need to give it a component mask query and query type.
+```
+ecsEnableSystem(system_yourSystem, YourComponent1 | YourComponent2, ECS_QUERY_ALL);
+```
+The query type in these cases defines whether the query requires all masked components to be present or only one of them. The special case ECS_NOQUERY will ensure that the system is only run once, with NULL for its entities, components and count arguments.
+
 ## Example code
 ```
 #include <ecs.h>
