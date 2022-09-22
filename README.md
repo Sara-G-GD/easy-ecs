@@ -9,8 +9,9 @@ To start using easy ecs, you should first call `ecsInit()` to initialize the sys
 Registering components is a single function call:
 ```
 YourComponent = ecsMakeComponentType(sizeof(your_component_c));
+// or using the #define ecsRegisterComponent if you dont like the sizeof(...) call
+YourComponent = ecsRegisterComponent(your_component_c);
 ```
-Important to note is the sizeof(..) call. This is because this function only needs to know how much space to allocate for each individual component.
 
 After registering your component types, you can start using them in systems and entities. For example:
 ```
@@ -80,8 +81,8 @@ int main()
 	ecsInit();
 
 	// register a component type and save it's component mask.
-	PositionComponent = ecsMakeComponentType(sizeof(position_c));
-	MovementComponent = ecsMakeComponentType(sizeof(movement_c));
+	PositionComponent = ecsRegisterComponent(position_c);
+	MovementComponent = ecsRegisterComponent(movement_c);
 
 	// systems will be run in the order they are registered here.
 	// systems that are registered using ECS_NOQUERY are run once every frame.	
