@@ -1,4 +1,4 @@
-# quick-ecs
+# easy ecs
 A simple, easy to integrate entity-component-system library
 
 ## Example code
