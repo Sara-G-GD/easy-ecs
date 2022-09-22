@@ -14,7 +14,7 @@ Important to note is the sizeof(..) call. This is because this function only nee
 
 After registering your component types, you can start using them in systems and entities. For example:
 ```
-ecsEntityId your_entity = ecsCreateEntity(YourComponent1 | YourCompnent2);
+ecsEntityId your_entity = ecsCreateEntity(YourComponent1 | YourComponent2);
 ```
 
 The value returned by `ecsMakeComponentType` is a bitflag identifying the component type. Therefore you can bitwise-OR together a series of component type identifiers to create a 'component mask'.
