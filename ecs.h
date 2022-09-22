@@ -61,6 +61,7 @@ void ecsInit(void);
  * \param stride The number of bytes to allocate for each component.
  */
 ecsComponentMask ecsMakeComponentType(size_t stride);
+#define ecsRegisterComponent(__type) ecsMakeComponentType(sizeof(__type))
 
 /**
  * \brief Get a pointer to a component attached to entity.
