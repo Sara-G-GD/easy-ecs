@@ -27,7 +27,7 @@ ecsEnableSystem(system_yourSystem, YourComponent1 | YourComponent2, ECS_QUERY_AL
 The query type in these cases defines whether the query requires all masked components to be present (ECS_QUERY_ALL) or only one of them (ECS_QUERY_ANY). The special case ECS_NOQUERY will ensure that the system is only run once, with NULL for its entities and components arguments, and 0 for its count argument.
 
 ## Example code
-```
+``` cpp
 #include <ecs.h>
 #include <stdio.h>
 #include <time.h>
