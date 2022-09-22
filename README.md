@@ -7,21 +7,21 @@ To start using easy ecs, you should first call `ecsInit()` to initialize the sys
 > Note that, in order to avoid inaccessible component instances, it is impossible to unregister a component type without terminating easy ecs entirely.
 
 Registering components is a single function call:
-```
+``` cpp
 YourComponent = ecsMakeComponentType(sizeof(your_component_c));
 // or using the #define ecsRegisterComponent if you dont like the sizeof(...) call
 YourComponent = ecsRegisterComponent(your_component_c);
 ```
 
 After registering your component types, you can start using them in systems and entities. For example:
-```
+``` cpp
 ecsEntityId your_entity = ecsCreateEntity(YourComponent1 | YourComponent2);
 ```
 
 The value returned by `ecsMakeComponentType` is a bitflag identifying the component type. Therefore you can bitwise-OR together a series of component type identifiers to create a 'component mask'.
 
 To enable a system, you need to give it a component mask query and query type.
-```
+``` cpp
 ecsEnableSystem(system_yourSystem, YourComponent1 | YourComponent2, ECS_QUERY_ALL);
 ```
 The query type in these cases defines whether the query requires all masked components to be present (ECS_QUERY_ALL) or only one of them (ECS_QUERY_ANY). The special case ECS_NOQUERY will ensure that the system is only run once, with NULL for its entities and components arguments, and 0 for its count argument.
@@ -95,8 +95,8 @@ int main()
 	// the system will trigger only on entities containing a PositionComponent.
 	ecsEnableSystem(system_movement, PositionComponent | MovementComponent, ECS_QUERY_ALL);
 
-    // runs enable system tasks that were just created
-    ecsRunTasks();
+	// runs enable system tasks that were just created
+    	ecsRunTasks();
 
 	// entities are made by passing a mask of initial components.
 	// make an entity with a position component.
