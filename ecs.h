@@ -5,8 +5,8 @@
 //  Created by Scott on 08/09/2022.
 //
 
-#ifndef components_h
-#define components_h
+#ifndef ecs_h
+#define ecs_h
 
 #include <stddef.h>
 #include <memory.h>
@@ -149,4 +149,4 @@ void ecsTerminate(void);
 }
 #endif
 
-#endif /* components_h */
+#endif /* ecs_h */
