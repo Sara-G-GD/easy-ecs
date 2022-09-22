@@ -4,7 +4,7 @@ A simple, easy to integrate entity-component-system library
 ## Usage
 To start using easy ecs, you should first call `ecsInit()` to initialize the system. After that, register the basic components and systems that make up your project. Although there is nothing stopping you from registering new compnoents at any time, it would be advisable to register components at startup only.
 
-> Note that, in order to avoid unaccessible component instances, it is impossible to unregister a component type without terminating easy ecs entirely.
+> Note that, in order to avoid inaccessible component instances, it is impossible to unregister a component type without terminating easy ecs entirely.
 
 Registering components is a single function call:
 ```
