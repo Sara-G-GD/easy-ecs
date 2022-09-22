@@ -4,7 +4,7 @@ A simple, easy to integrate entity-component-system library
 ## Usage
 To start using easy ecs, you should first call `ecsInit()` to initialize the system. After that, register the basic components and systems that make up your project. Although there is nothing stopping you from registering new systems at any time, it would be advisable to register components at startup only.
 
-Referencing components is a single function call:
+Registering components is a single function call:
 ```
 YourComponent = ecsMakeComponentType(sizeof(your_component_c));
 ```
