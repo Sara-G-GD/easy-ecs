@@ -7,6 +7,7 @@ To start using easy ecs, you should first call `ecsInit()` to initialize the sys
 > Note that, in order to avoid inaccessible component instances, it is impossible to unregister a component type without terminating easy ecs entirely.
 
 Registering components is a single function call:
+
 ``` cpp
 YourComponent = ecsMakeComponentType(sizeof(your_component_c));
 // or using the #define ecsRegisterComponent if you dont like the sizeof(...) call
@@ -14,6 +15,7 @@ YourComponent = ecsRegisterComponent(your_component_c);
 ```
 
 After registering your component types, you can start using them in systems and entities. For example:
+
 ``` cpp
 ecsEntityId your_entity = ecsCreateEntity(YourComponent1 | YourComponent2);
 ```
@@ -21,6 +23,7 @@ ecsEntityId your_entity = ecsCreateEntity(YourComponent1 | YourComponent2);
 The value returned by `ecsMakeComponentType` is a bitflag identifying the component type. Therefore you can bitwise-OR together a series of component type identifiers to create a 'component mask'.
 
 To enable a system, you need to give it a component mask query and query type.
+
 ``` cpp
 ecsEnableSystem(system_yourSystem, YourComponent1 | YourComponent2, ECS_QUERY_ALL);
 ```
