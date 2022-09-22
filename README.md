@@ -24,7 +24,7 @@ To enable a system, you need to give it a component mask query and query type.
 ```
 ecsEnableSystem(system_yourSystem, YourComponent1 | YourComponent2, ECS_QUERY_ALL);
 ```
-The query type in these cases defines whether the query requires all masked components to be present or only one of them. The special case ECS_NOQUERY will ensure that the system is only run once, with NULL for its entities, components and count arguments.
+The query type in these cases defines whether the query requires all masked components to be present (ECS_QUERY_ALL) or only one of them (ECS_QUERY_ANY). The special case ECS_NOQUERY will ensure that the system is only run once, with NULL for its entities, components and count arguments.
 
 ## Example code
 ```
