@@ -113,14 +113,14 @@ int main()
 		movement->speed = 1.f;
 	}
 
-    	float currentTime = 0;
-    	float lastTime = 0;
+	float currentTime = 0;
+	float lastTime = 0;
 	currentTime = lastTime = (float)clock() / CLOCKS_PER_SEC;
 	int done = 0;
 	while(!done)
 	{
-        lastTime = currentTime;
-        currentTime = (float)clock() / CLOCKS_PER_SEC;
+		lastTime = currentTime;
+		currentTime = (float)clock() / CLOCKS_PER_SEC;
 		// do rendering and event handling if not done using the ECS library...
 
 		// as this ECS implementation was written for games, systems have the requirement of knowing the delta time.
