@@ -68,7 +68,7 @@ void system_movement(ecsEntityId* entities, ecsComponentMask* components, size_t
 /*
  * It is entirely possible to handle events and rendering through the ECS library,
  * assuming that the context functions and variables are available at this scope.
- * e.g: sf::RenderTarget or SDL_Window instances.
+ * e.g: sf::RenderWindow or SDL_Window instances.
  */
 void system_handleEvents(ecsEntityId* entities, ecsComponentMask* components, size_t count, float deltaTime) {}
 void system_renderSprites(ecsEntityId* entities, ecsComponentMask* components, size_t count, float deltaTime) {}
