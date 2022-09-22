@@ -113,9 +113,9 @@ int main()
 		movement->speed = 1.f;
 	}
 
-    float currentTime = 0;
-    float lastTime = 0;
-    currentTime = lastTime = (float)clock() / CLOCKS_PER_SEC;
+    	float currentTime = 0;
+    	float lastTime = 0;
+	currentTime = lastTime = (float)clock() / CLOCKS_PER_SEC;
 	int done = 0;
 	while(!done)
 	{
