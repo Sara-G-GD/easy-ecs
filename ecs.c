@@ -67,20 +67,27 @@ ECSentityList		entities;
 ECScomponentList	components;
 ECSsystemList		systems;
 ECStaskQueue		tasks;
+int					isInit = 0;
 
 
 void ecsInit()
 {
+	assert(!isInit);
+
 	entities.nextValidId = 1;
 	entities.begin		= NULL;
 	components.begin	= NULL;
 	systems.begin		= NULL;
 	tasks.begin			= NULL;
 	entities.size = components.size = systems.size = tasks.size = 0;
+
+	isInit = 1;
 }
 
 void ecsTerminate()
 {
+	assert(isInit);
+
 	if(entities.begin)	free(entities.begin);
 	if(systems.begin)	free(systems.begin);
 	if(tasks.begin)		free(tasks.begin);
@@ -96,6 +103,8 @@ void ecsTerminate()
 		}
 		free(components.begin);
 	}
+
+	isInit = 0;
 }
 
 ecsComponentMask ecsMakeComponentType(size_t stride)
