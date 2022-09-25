@@ -1,5 +1,5 @@
 //
-//  components.c
+//  ecs.c
 //  gl_project
 //
 //  Created by Scott on 08/09/2022.
@@ -51,77 +51,77 @@ typedef struct ECStaskQueue {
 } ECStaskQueue;
 
 // forward declare helper functions
-static inline int resizeComponents(size_t size);
-static inline int resizeComponentType(ECScomponentType* type, size_t size);
-static inline int resizeEntities(size_t size);
-static inline int resizeSystems(size_t size);
-static inline int pushTask(void);
-static inline void clearTasks(void);
-static inline ECSentityData* findEntityData(ecsEntityId id);
-static inline ECScomponentType* findComponentType(ecsComponentMask id);
-static inline ECSsystem* findSystem(ecsSystemFn fn);
-static inline void* findComponentFor(ECScomponentType* type, ecsEntityId id);
+static inline int ecsResizeComponents(size_t size);
+static inline int ecsResizeComponentType(ECScomponentType* type, size_t size);
+static inline int ecsResizeEntities(size_t size);
+static inline int ecsResizeSystems(size_t size);
+static inline int ecsPushTaskStack(void);
+static inline void ecsClearTasks(void);
+static inline ECSentityData* ecsFindEntityData(ecsEntityId id);
+static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id);
+static inline ECSsystem* ecsFindSystem(ecsSystemFn fn);
+static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id);
 
 
-ECSentityList		entities;
-ECScomponentList	components;
-ECSsystemList		systems;
-ECStaskQueue		tasks;
-int					isInit = 0;
+ECSentityList		ecsEntities;
+ECScomponentList	ecsComponents;
+ECSsystemList		ecsSystems;
+ECStaskQueue		ecsTasks;
+int					ecsIsInit = 0;
 
 
 void ecsInit()
 {
-	assert(!isInit);
+	assert(!ecsIsInit);
 
-	entities.nextValidId = 1;
-	entities.begin		= NULL;
-	components.begin	= NULL;
-	systems.begin		= NULL;
-	tasks.begin			= NULL;
-	entities.size = components.size = systems.size = tasks.size = 0;
+	ecsEntities.nextValidId = 1;
+	ecsEntities.begin		= NULL;
+	ecsComponents.begin	= NULL;
+	ecsSystems.begin		= NULL;
+	ecsTasks.begin			= NULL;
+	ecsEntities.size = ecsComponents.size = ecsSystems.size = ecsTasks.size = 0;
 
-	isInit = 1;
+	ecsIsInit = 1;
 }
 
 void ecsTerminate()
 {
-	assert(isInit);
+	assert(ecsIsInit);
 
-	if(entities.begin)	free(entities.begin);
-	if(systems.begin)	free(systems.begin);
-	if(tasks.begin)		free(tasks.begin);
+	if(ecsEntities.begin)	free(ecsEntities.begin);
+	if(ecsSystems.begin)	free(ecsSystems.begin);
+	if(ecsTasks.begin)		free(ecsTasks.begin);
 	
-	if(components.begin)
+	if(ecsComponents.begin)
 	{
 		ECScomponentType* type;
-		for(size_t i = 0; i < components.size; i++)
+		for(size_t i = 0; i < ecsComponents.size; i++)
 		{
-			type = components.begin + i;
+			type = ecsComponents.begin + i;
 			if(type->begin)
 				free(type->begin);
 		}
-		free(components.begin);
+		free(ecsComponents.begin);
 	}
 
-	isInit = 0;
+	ecsIsInit = 0;
 }
 
 ecsComponentMask ecsMakeComponentType(size_t stride)
 {
 	// avoid going out of bounds on the bitmask
-	if (components.size == sizeof(ecsComponentMask) * 8) return nocomponent;
+	if (ecsComponents.size == sizeof(ecsComponentMask) * 8) return nocomponent;
 	
-	ecsComponentMask mask = (0x1ll << components.size); // calculate component mask
+	ecsComponentMask mask = (0x1ll << ecsComponents.size); // calculate component mask
 
 	// add an element to end of array
-	if(resizeComponents(components.size + 1))
+	if(ecsResizeComponents(ecsComponents.size + 1))
 	{
 		ECScomponentType ntype = (ECScomponentType) { // prepare specs of new component type
 			.size = 0, .begin = NULL, .id = mask, .stride = (stride + sizeof(ecsEntityId)), .componentSize = stride
 		};
 		// copy prepared component data
-		memmove(components.begin + components.size-1, &ntype, sizeof(ntype));
+		memmove(ecsComponents.begin + ecsComponents.size-1, &ntype, sizeof(ntype));
 		return mask;
 	}
 	
@@ -134,9 +134,9 @@ ecsComponentMask ecsMakeComponentType(size_t stride)
 
 void* ecsGetComponentPtr(ecsEntityId e, ecsComponentMask c)
 {
-	ECScomponentType* ctype = findComponentType(c);
+	ECScomponentType* ctype = ecsFindComponentType(c);
 	
-	ecsEntityId* ptr = findComponentFor(ctype, e);
+	ecsEntityId* ptr = ecsFindComponentFor(ctype, e);
 	if(ptr == NULL) return NULL; // component for e, c combination does not exist
 	
 	return (void*)(ptr + 1);
@@ -144,14 +144,14 @@ void* ecsGetComponentPtr(ecsEntityId e, ecsComponentMask c)
 
 void ecsAttachComponent(ecsEntityId e, ecsComponentMask c)
 {
-	ECSentityData* entity = findEntityData(e);
-	ECScomponentType* ctype = findComponentType(c);
+	ECSentityData* entity = ecsFindEntityData(e);
+	ECScomponentType* ctype = ecsFindComponentType(c);
 	
 	if(ctype == NULL) return;					// component type does not exist
 	if(entity == NULL) return;					// no such entity
 	if(((entity->mask) & c) != 0) return;		// component already exists
 	
-	if(resizeComponentType(ctype, ctype->size + 1))
+	if(ecsResizeComponentType(ctype, ctype->size + 1))
 	{
 		BYTE* eid = (((BYTE*)ctype->begin) + ((ctype->size-1) * ctype->stride)); // get last item of the list as its entityId block
 		memset(eid, 0x0, ctype->stride);		// zero new component
@@ -163,7 +163,7 @@ void ecsAttachComponent(ecsEntityId e, ecsComponentMask c)
 void ecsAttachComponents(ecsEntityId e, ecsComponentMask q)
 {
 	ecsComponentMask c; // single component mask
-	for(size_t i = 0; i < components.size; i++)
+	for(size_t i = 0; i < ecsComponents.size; i++)
 	{
 		c = (0x1ll << i);
 		if((q & c) != 0) // query contains this mask
@@ -173,16 +173,16 @@ void ecsAttachComponents(ecsEntityId e, ecsComponentMask q)
 
 void ecsDetachComponent(ecsEntityId e, ecsComponentMask c)
 {
-	ECScomponentType* ctype = findComponentType(c);
+	ECScomponentType* ctype = ecsFindComponentType(c);
 
 	if(ctype == NULL) return;			// no such component type
 	
-	ECSentityData* entity = findEntityData(e);
+	ECSentityData* entity = ecsFindEntityData(e);
 
 	if(entity == NULL) return;			// no such entity
 	if((entity->mask & c) == 0) return;	// entity does not have component
 	
-	void* block = findComponentFor(ctype, e);
+	void* block = ecsFindComponentFor(ctype, e);
 
 	if(block == NULL) return;			// no component block for entity found
 	
@@ -191,7 +191,7 @@ void ecsDetachComponent(ecsEntityId e, ecsComponentMask c)
 	memmove(block, last, ctype->stride);
 	
 	// shorten array by one stride
-	resizeComponentType(ctype, (ctype->size)-1);
+	ecsResizeComponentType(ctype, (ctype->size)-1);
 }
 
 void ecsDetachComponents(ecsEntityId e, ecsComponentMask c)
@@ -199,7 +199,7 @@ void ecsDetachComponents(ecsEntityId e, ecsComponentMask c)
 void ecsTaskDetachComponents(ecsEntityId e, ecsComponentMask q)
 {
 	ecsComponentMask id;
-	for(size_t i = 0; i < components.size; i++)
+	for(size_t i = 0; i < ecsComponents.size; i++)
 	{
 		id = (0x1ll << i);
 		if((q & id) != 0) // query contains component type at i
@@ -214,8 +214,8 @@ void ecsTaskDetachComponents(ecsEntityId e, ecsComponentMask q)
 ecsEntityId ecsCreateEntity(ecsComponentMask components)
 {
 	// register an id that is unique for the runtime of the ecs
-	ecsEntityId id = entities.nextValidId;
-	entities.nextValidId += 1;
+	ecsEntityId id = ecsEntities.nextValidId;
+	ecsEntities.nextValidId += 1;
 	
 	// prepare values
 	ECSentityData entity = (ECSentityData) {
@@ -223,10 +223,10 @@ ecsEntityId ecsCreateEntity(ecsComponentMask components)
 	};
 	
 	// resize entities list
-	if(resizeEntities(entities.size + 1))
+	if(ecsResizeEntities(ecsEntities.size + 1))
 	{
 		// copy prepared values
-		memmove((entities.begin + entities.size - 1), &entity, sizeof(entity));
+		memmove((ecsEntities.begin + ecsEntities.size - 1), &entity, sizeof(entity));
 		
 		// attach requested components
 		ecsAttachComponents(id, components);
@@ -237,7 +237,7 @@ ecsEntityId ecsCreateEntity(ecsComponentMask components)
 
 ecsEntityId ecsGetComponentMask(ecsEntityId entity)
 {
-	ECSentityData* data = findEntityData(entity);
+	ECSentityData* data = ecsFindEntityData(entity);
 	return data != NULL ? data->mask : nocomponent;
 }
 
@@ -245,18 +245,18 @@ void ecsDestroyEntity(ecsEntityId e)
 { ecsPushTask((ecsTask){.type=ECS_ENTITY_DESTROY, .entity=e}); }
 void ecsTaskDestroyEntity(ecsEntityId e)
 {
-	ECSentityData* data = findEntityData(e);
+	ECSentityData* data = ecsFindEntityData(e);
 	if(data == NULL) return; // no such entity
 	
 	// destroy all components owned by entity
 	ecsTaskDetachComponents(e, data->mask);
 	
 	// get the last element of the entities array
-	ECSentityData* last = (entities.begin + entities.size - 1);
+	ECSentityData* last = (ecsEntities.begin + ecsEntities.size - 1);
 	// copy last into to-be-deleted entity
 	memmove(data, last, sizeof(ECSentityData));
 	// resize
-	resizeEntities(entities.size - 1);
+	ecsResizeEntities(ecsEntities.size - 1);
 }
 
 //
@@ -275,10 +275,10 @@ void ecsRunSystems(float deltaTime)
 {
 	ECSsystem system;
 	ECSentityData entity;
-	size_t entityCount = entities.size;
-	for(size_t i = 0; i < systems.size; ++i)
+	size_t entityCount = ecsEntities.size;
+	for(size_t i = 0; i < ecsSystems.size; ++i)
 	{
-		system = systems.begin[i];
+		system = ecsSystems.begin[i];
 		// ECS_NOQUERY systems get run exactly once per ecsRunSystems call
 		if(system.query.comparison == ECS_NOQUERY)
 		{
@@ -294,7 +294,7 @@ void ecsRunSystems(float deltaTime)
 			size_t total = 0;
 			for(size_t j = 0; j < entityCount; ++j)
 			{
-				entity = entities.begin[j];
+				entity = ecsEntities.begin[j];
 				if (matchQuery(system.query, entity.mask))
 				{
 					assert(total < entityCount);
@@ -316,9 +316,9 @@ void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison 
 { ecsPushTask((ecsTask){ .type=ECS_SYSTEM_CREATE, .system=fn, .components=(ecsComponentQuery){ .mask=query, .comparison=comp} }); }
 void ecsTaskEnableSystem(ecsSystemFn fn, ecsComponentQuery query)
 {
-	if(resizeSystems(systems.size + 1))
+	if(ecsResizeSystems(ecsSystems.size + 1))
 	{
-		ECSsystem* last = (systems.begin + systems.size - 1);
+		ECSsystem* last = (ecsSystems.begin + ecsSystems.size - 1);
 		last->query = query;
 		last->fn = fn;
 	}
@@ -328,14 +328,14 @@ void ecsDisableSystem(ecsSystemFn fn)
 { ecsPushTask((ecsTask){ .type=ECS_SYSTEM_DESTROY, .system=fn }); }
 void ecsTaskDisableSystem(ecsSystemFn fn)
 {
-	ECSsystem* s = findSystem(fn);
+	ECSsystem* s = ecsFindSystem(fn);
 	if(s == NULL) return; // system not enabled
 	
-	ECSsystem* last = systems.begin + systems.size - 1; // the last item in the systems array
+	ECSsystem* last = ecsSystems.begin + ecsSystems.size - 1; // the last item in the systems array
 	// copy last into to-be-disabled
 	memmove(s, last, sizeof(ECSsystem));
 	// resize array
-	resizeSystems(systems.size - 1);
+	ecsResizeSystems(ecsSystems.size - 1);
 }
 
 //
@@ -344,9 +344,9 @@ void ecsTaskDisableSystem(ecsSystemFn fn)
 
 void ecsPushTask(ecsTask task)
 {
-	if(pushTask())
+	if(ecsPushTaskStack())
 	{
-		ecsTask* last = tasks.begin + tasks.size - 1;
+		ecsTask* last = ecsTasks.begin + ecsTasks.size - 1;
 		memmove(last, &task, sizeof(ecsTask));
 	}
 }
@@ -376,26 +376,26 @@ void ecsRunTask(ecsTask task)
 
 void ecsRunTasks()
 {
-	for(size_t i = 0; i < tasks.size; i++)
-		ecsRunTask(tasks.begin[i]);
-	clearTasks();
+	for(size_t i = 0; i < ecsTasks.size; i++)
+		ecsRunTask(ecsTasks.begin[i]);
+	ecsClearTasks();
 }
 
 //
 // FIND HELPERS
 //
 
-static inline ECScomponentType* findComponentType(ecsComponentMask id)
+static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id)
 {
-	for(size_t i = 0; i < components.size; ++i)
+	for(size_t i = 0; i < ecsComponents.size; ++i)
 	{
-		if(components.begin[i].id == id)
-			return (components.begin + i);
+		if(ecsComponents.begin[i].id == id)
+			return (ecsComponents.begin + i);
 	}
 	return NULL;
 }
 
-static inline void* findComponentFor(ECScomponentType* type, ecsEntityId id)
+static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 {
 	BYTE* sptr;
 	ecsEntityId* eptr;
@@ -409,22 +409,22 @@ static inline void* findComponentFor(ECScomponentType* type, ecsEntityId id)
 	return NULL;
 }
 
-static inline ECSentityData* findEntityData(ecsEntityId id)
+static inline ECSentityData* ecsFindEntityData(ecsEntityId id)
 {
-	for(size_t i = 0; i < entities.size; ++i)
+	for(size_t i = 0; i < ecsEntities.size; ++i)
 	{
-		if(entities.begin[i].id == id)
-			return (entities.begin + i);
+		if(ecsEntities.begin[i].id == id)
+			return (ecsEntities.begin + i);
 	}
 	return NULL;
 }
 
-static inline ECSsystem* findSystem(ecsSystemFn fn)
+static inline ECSsystem* ecsFindSystem(ecsSystemFn fn)
 {
-	for(size_t i = 0; i < systems.size; ++i)
+	for(size_t i = 0; i < ecsSystems.size; ++i)
 	{
-		if(systems.begin[i].fn == fn)
-			return (systems.begin + i);
+		if(ecsSystems.begin[i].fn == fn)
+			return (ecsSystems.begin + i);
 	}
 	return NULL;
 }
@@ -433,65 +433,65 @@ static inline ECSsystem* findSystem(ecsSystemFn fn)
 // RESIZE HELPERS
 //
 
-static inline int resizeSystems(size_t size)
+static inline int ecsResizeSystems(size_t size)
 {
 	if(size == 0)
 	{
-		free(systems.begin);
-		systems.begin = NULL;
-		systems.size = 0;
+		free(ecsSystems.begin);
+		ecsSystems.begin = NULL;
+		ecsSystems.size = 0;
 	}
 	else
 	{
-		ECSsystem* nptr = realloc(systems.begin, size * sizeof(ECSsystem));
+		ECSsystem* nptr = realloc(ecsSystems.begin, size * sizeof(ECSsystem));
 		if(nptr == NULL) return 0;
 		
-		systems.size = size;
-		systems.begin = nptr;
+		ecsSystems.size = size;
+		ecsSystems.begin = nptr;
 	}
 	return 1;
 }
 
-static inline int pushTask()
+static inline int ecsPushTaskStack()
 {
-	size_t size = tasks.size + 1;
-	void* nptr = realloc(tasks.begin, size * sizeof(ecsTask));
+	size_t size = ecsTasks.size + 1;
+	void* nptr = realloc(ecsTasks.begin, size * sizeof(ecsTask));
 	if(nptr == NULL) return 0;
 	
-	tasks.size = size;
-	tasks.begin = nptr;
+	ecsTasks.size = size;
+	ecsTasks.begin = nptr;
 	return 1;
 }
 
-static inline void clearTasks()
+static inline void ecsClearTasks()
 {
-	if(tasks.begin == NULL || tasks.size == 0) return; // no tasks
+	if(ecsTasks.begin == NULL || ecsTasks.size == 0) return; // no tasks
 	
-	tasks.size = 0;
-	free(tasks.begin);
-	tasks.begin = NULL;
+	ecsTasks.size = 0;
+	free(ecsTasks.begin);
+	ecsTasks.begin = NULL;
 }
 
-static inline int resizeEntities(size_t size)
+static inline int ecsResizeEntities(size_t size)
 {
 	if(size == 0)
 	{
-		free(entities.begin);
-		entities.begin = NULL;
-		entities.size = 0;
+		free(ecsEntities.begin);
+		ecsEntities.begin = NULL;
+		ecsEntities.size = 0;
 	}
 	else
 	{
-		ECSentityData* nptr = realloc(entities.begin, size * sizeof(ECSentityData));
+		ECSentityData* nptr = realloc(ecsEntities.begin, size * sizeof(ECSentityData));
 		if(nptr == NULL) return 0;
 		
-		entities.size = size;
-		entities.begin = nptr;
+		ecsEntities.size = size;
+		ecsEntities.begin = nptr;
 	}
 	return 1;
 }
 
-static inline int resizeComponentType(ECScomponentType* type, size_t size)
+static inline int ecsResizeComponentType(ECScomponentType* type, size_t size)
 {
 	if(size == 0)
 	{
@@ -512,21 +512,21 @@ static inline int resizeComponentType(ECScomponentType* type, size_t size)
 	return 1;
 }
 
-static inline int resizeComponents(size_t size)
+static inline int ecsResizeComponents(size_t size)
 {
 	if(size == 0)
 	{
-		free(components.begin);
-		components.size = 0;
-		components.begin = NULL;
+		free(ecsComponents.begin);
+		ecsComponents.size = 0;
+		ecsComponents.begin = NULL;
 	}
 	else
 	{
-		ECScomponentType* nptr = realloc(components.begin, size * sizeof(ECScomponentType));
+		ECScomponentType* nptr = realloc(ecsComponents.begin, size * sizeof(ECScomponentType));
 		if(nptr == NULL) return 0;
 		
-		components.begin = nptr;
-		components.size = size;
+		ecsComponents.begin = nptr;
+		ecsComponents.size = size;
 	}
 	return 1;
 }
