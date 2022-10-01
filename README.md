@@ -62,10 +62,10 @@ void system_movement(ecsEntityId* entities, ecsComponentMask* components, size_t
 		position_c* position = ecsGetComponentPtr(entities[i], PositionComponent);
 		movement_c* movement = ecsGetComponentPtr(entities[i], MovementComponent);
 
-        position->x += movement->speed * deltaTime;
+        	position->x += movement->speed * deltaTime;
 
-        fprintf(stdout, "%s:%d: position (%f, %f)\n", __FILE__, __LINE__,
-                position->x, position->y);
+        	fprintf(stdout, "%s:%d: position (%f, %f)\n", __FILE__, __LINE__,
+                	position->x, position->y);
 	}	
 }
 
