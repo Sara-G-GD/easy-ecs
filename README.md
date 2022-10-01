@@ -95,7 +95,7 @@ int main()
 	ecsEnableSystem(system_handleEvents, nocomponent, ECS_NOQUERY);
 
 	// register system_movement as a system.
-	// the system will trigger only on entities containing a PositionComponent.
+	// the system will trigger only on entities containing a PositionComponent and a MovementComponent.
 	ecsEnableSystem(system_movement, PositionComponent | MovementComponent, ECS_QUERY_ALL);
 
 	// runs enable system tasks that were just created
