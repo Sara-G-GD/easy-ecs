@@ -328,12 +328,13 @@ void ecsDisableSystem(ecsSystemFn fn)
 { ecsPushTask((ecsTask){ .type=ECS_SYSTEM_DESTROY, .system=fn }); }
 void ecsTaskDisableSystem(ecsSystemFn fn)
 {
-	ECSsystem* s = ecsFindSystem(fn);
-	if(s == NULL) return; // system not enabled
+	BYTE* dst = ecsFindSystem(fn);
+	if(dst == NULL) return; // system not enabled
 	
-	ECSsystem* last = ecsSystems.begin + ecsSystems.size - 1; // the last item in the systems array
-	// copy last into to-be-disabled
-	memmove(s, last, sizeof(ECSsystem));
+	BYTE* start = dst + sizeof(ECSsystem);
+	BYTE* end = ecsSystems.begin + (ecsSystems.size - 1) * sizeof(ECSsystem); // the last item in the systems array
+	size_t size = (uintptr_t)end - (uintptr_t)start;
+	memmove(dst, start, size);
 	// resize array
 	ecsResizeSystems(ecsSystems.size - 1);
 }
