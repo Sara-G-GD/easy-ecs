@@ -92,7 +92,7 @@ int main()
 
 	// systems will be run in the order they are registered here.
 	// systems that are registered using ECS_NOQUERY are run once every frame.	
-	// these systems will be passed NULL for the entities and components arguments, 0 for count and deltaTime as normal.
+	// these systems will be passed NULL for the entities and components argument and 0 for count.
 	// the component mask argument of the ecsEnableSystem call is ignored.
 	ecsEnableSystem(system_handleEvents, nocomponent, ECS_NOQUERY);
 	ecsEnableSystem(system_handleEvents, nocomponent, ECS_NOQUERY);
