@@ -126,7 +126,8 @@ int main()
 		currentTime = (float)clock() / CLOCKS_PER_SEC;
 		// do rendering and event handling if not done using the ECS library...
 
-		// as this ECS implementation was written for games, systems have the requirement of knowing the delta time.
+		// as this ECS implementation was written for games,
+		// systems need to know the delta time.
 		// calculating delta time is currently left to the end programmer.
 		ecsRunSystems(currentTime - lastTime);
 	}
