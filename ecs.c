@@ -8,12 +8,14 @@
 #include "ecs.h"
 #include <assert.h>
 #include <stdio.h>
+#include <pthread.h>
 
 typedef unsigned char BYTE;
 
 typedef struct ECSsystem {
-	ecsSystemFn	fn;
+	ecsSystemFn			fn;
 	ecsComponentQuery	query;
+	int					maxThreads;
 } ECSsystem;
 
 typedef struct ECSentityData {
@@ -271,14 +273,35 @@ int matchQuery(ecsComponentQuery query, ecsComponentMask mask)
 		return (mask & query.mask) == query.mask;
 	return 0;
 }
+
+typedef struct ecsRunSystemArgs {
+	ecsSystemFn fn;
+	ecsEntityId* entities;
+	ecsComponentMask* components;
+	size_t count;
+	float deltaTime;
+} ecsRunSystemArgs;
+
+void* ecsRunSystem(void* args)
+{
+	ecsRunSystemArgs* arg = args;
+	arg->fn(arg->entities, arg->components, arg->count, arg->deltaTime);
+	return NULL;
+}
+
 void ecsRunSystems(float deltaTime)
 {
 	ECSsystem system;
 	ECSentityData entity;
 	size_t entityCount = ecsEntities.size;
+	
+	pthread_t* threads = NULL;
+	ecsRunSystemArgs* threadAttribs = NULL;
+	
 	for(size_t i = 0; i < ecsSystems.size; ++i)
 	{
 		system = ecsSystems.begin[i];
+		
 		// ECS_NOQUERY systems get run exactly once per ecsRunSystems call
 		if(system.query.comparison == ECS_NOQUERY)
 		{
@@ -303,24 +326,55 @@ void ecsRunSystems(float deltaTime)
 					total++;
 				}
 			}
-			system.fn(entityList, componentList, total, deltaTime);
+			
+			if(system.maxThreads <= 1)
+			{
+				system.fn(entityList, componentList, total, deltaTime);
+			}
+			else
+			{
+				threads = realloc(threads, system.maxThreads * sizeof(pthread_t));
+				threadAttribs = realloc(threadAttribs, system.maxThreads * sizeof(ecsRunSystemArgs));
+				
+				size_t perThreadCount = total / system.maxThreads;
+				for(int j = 0; j < system.maxThreads; ++j)
+				{
+					threadAttribs[j].fn = system.fn;
+					threadAttribs[j].entities = entityList + perThreadCount * j;
+					threadAttribs[j].components = componentList + perThreadCount * j;
+					threadAttribs[j].count = perThreadCount;
+					threadAttribs[j].deltaTime = deltaTime;
+					
+					pthread_create(threads + j, NULL, &ecsRunSystem, threadAttribs + j);
+				}
+				for(int j = 0; j < system.maxThreads; ++j)
+				{
+					pthread_join(threads[j], NULL);
+				}
+			}
+			
 			free(entityList);
 			free(componentList);
 		}
 	}
+	if(threads != NULL)
+		free(threads);
+	if(threadAttribs != NULL)
+		free(threadAttribs);
 	
 	ecsRunTasks();
 }
 
-void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison comp)
-{ ecsPushTask((ecsTask){ .type=ECS_SYSTEM_CREATE, .system=fn, .components=(ecsComponentQuery){ .mask=query, .comparison=comp} }); }
-void ecsTaskEnableSystem(ecsSystemFn fn, ecsComponentQuery query)
+void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison comp, int maxThreads)
+{ ecsPushTask((ecsTask){ .type=ECS_SYSTEM_CREATE, .system=fn, .count=maxThreads, .components=(ecsComponentQuery){ .mask=query, .comparison=comp} }); }
+void ecsTaskEnableSystem(ecsSystemFn fn, ecsComponentQuery query, int threads)
 {
 	if(ecsResizeSystems(ecsSystems.size + 1))
 	{
 		ECSsystem* last = (ecsSystems.begin + ecsSystems.size - 1);
 		last->query = query;
 		last->fn = fn;
+		last->maxThreads = threads;
 	}
 }
 
@@ -367,7 +421,7 @@ void ecsRunTask(ecsTask task)
 		return;
 		
 	case ECS_SYSTEM_CREATE:
-		ecsTaskEnableSystem(task.system, task.components);
+		ecsTaskEnableSystem(task.system, task.components, task.count);
 		return;
 	case ECS_SYSTEM_DESTROY:
 		ecsTaskDisableSystem(task.system);

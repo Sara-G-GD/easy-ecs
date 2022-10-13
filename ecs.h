@@ -43,14 +43,15 @@ typedef struct ecsComponentQuery {
  */
 typedef struct ecsTask {
 	enum ECS_TASKTYPE {
-		ECS_ENTITY_DESTROY,			//! Requires .entity to be set
-		ECS_COMPONENTS_DETACH,		//! requires .entity and .components.mask to be set
-		ECS_SYSTEM_CREATE,			//! Requires .system and .components to be set
-		ECS_SYSTEM_DESTROY,			//! Requires .system to be set
+		ECS_ENTITY_DESTROY,			//! Uses .entity
+		ECS_COMPONENTS_DETACH,		//! Uses .entity and .components.mask
+		ECS_SYSTEM_CREATE,			//! Uses .system, .count and .components
+		ECS_SYSTEM_DESTROY,			//! Uses .system
 	} type;
 
 	ecsEntityId			entity;		//! relevant entity id
 	ecsSystemFn			system;		//! relevant system function pointer
+	int					count;		//! arbitrary int value
 	ecsComponentQuery	components;	//! relevant components
 } ecsTask;
 
@@ -117,7 +118,7 @@ void ecsDetachComponents(ecsEntityId entity, ecsComponentMask components);
  * \note
  * When comparison=ECS_QUERY_ANY the system will run for all entities where any of the masked components are present.
  */
-void ecsEnableSystem(ecsSystemFn func, ecsComponentMask components, ecsQueryComparison comparison);
+void ecsEnableSystem(ecsSystemFn func, ecsComponentMask components, ecsQueryComparison comparison, int maxThreads);
 
 /**
  * \brief Disables a function acting as a system.
