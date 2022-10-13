@@ -153,7 +153,7 @@ void ecsSortComponents(ECScomponentType* type)
 			enta = *(ecsEntityId*)a;
 			entb = *(ecsEntityId*)b;
 			
-			if(enta > entb)
+			if(enta < entb)
 			{
 				swaps++;
 				memcpy(temp, b, type->stride);
