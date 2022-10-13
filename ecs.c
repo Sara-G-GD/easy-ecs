@@ -8,6 +8,7 @@
 #include "ecs.h"
 #include <assert.h>
 #include <stdio.h>
+#include <math.h>
 #include <pthread.h>
 
 typedef unsigned char BYTE;
@@ -134,6 +135,35 @@ ecsComponentMask ecsMakeComponentType(size_t stride)
 // COMPONENTS
 //
 
+void ecsSortComponents(ECScomponentType* type)
+{
+	int swaps;
+	void* a;
+	void* b;
+	ecsEntityId enta;
+	ecsEntityId entb;
+	void* temp = malloc(type->stride);
+	
+	do {
+		swaps = 0;
+		for(size_t i = 1; i < type->size; ++i)
+		{
+			a = ((BYTE*)type->begin) + type->stride * (i-1);
+			b = ((BYTE*)type->begin) + type->stride * i;
+			enta = *(ecsEntityId*)a;
+			entb = *(ecsEntityId*)b;
+			
+			if(enta > entb)
+			{
+				swaps++;
+				memcpy(temp, b, type->stride);
+				memcpy(b, a, type->stride);
+				memcpy(a, temp, type->stride);
+			}
+		}
+	} while(swaps > 0);
+}
+
 void* ecsGetComponentPtr(ecsEntityId e, ecsComponentMask c)
 {
 	ECScomponentType* ctype = ecsFindComponentType(c);
@@ -159,6 +189,7 @@ void ecsAttachComponent(ecsEntityId e, ecsComponentMask c)
 		memset(eid, 0x0, ctype->stride);		// zero new component
 		memmove(eid, &e, sizeof(ecsEntityId));		// set entityId block
 		entity->mask |= c;						// register that component was added to entity
+		ecsSortComponents(ctype);
 	}
 }
 
@@ -454,12 +485,24 @@ static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 {
 	BYTE* sptr;
 	ecsEntityId* eptr;
-	for(size_t i = 0; i < type->size; ++i)
+	size_t l = 0;
+	size_t r = type->size - 1;
+	size_t m;
+	while(l <= r)
 	{
-		sptr = ((BYTE*)(type->begin) + (type->stride * i)); // get entityId ptr to element i
-		eptr = (ecsEntityId*)sptr;
-		if((*eptr) == id)
-			return sptr;
+		m = floorf((float)(l+r)/2.f);
+		sptr = ((BYTE*)type->begin) + m * type->stride; // median element
+		eptr = sptr;
+		
+		// go up
+		if(*eptr < id)
+			l = m + 1;
+		// go down
+		else if(*eptr > id)
+			r = m - 1;
+		// found the correct component
+		else if(*eptr == id)
+			return sptr + sizeof(ecsEntityId);
 	}
 	return NULL;
 }
