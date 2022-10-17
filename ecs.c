@@ -364,11 +364,12 @@ void ecsRunSystems(float deltaTime)
 			}
 			else
 			{
-				threads = realloc(threads, system.maxThreads * sizeof(pthread_t));
-				threadAttribs = realloc(threadAttribs, system.maxThreads * sizeof(ecsRunSystemArgs));
+				size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
+				threads = realloc(threads, threadCount * sizeof(pthread_t));
+				threadAttribs = realloc(threadAttribs, threadCount * sizeof(ecsRunSystemArgs));
 				
-				size_t perThreadCount = total / system.maxThreads;
-				for(int j = 0; j < system.maxThreads; ++j)
+				size_t perThreadCount = total / threadCount;
+				for(int j = 0; j < threadCount; ++j)
 				{
 					threadAttribs[j].fn = system.fn;
 					threadAttribs[j].entities = entityList + perThreadCount * j;
@@ -378,7 +379,7 @@ void ecsRunSystems(float deltaTime)
 					
 					pthread_create(threads + j, NULL, &ecsRunSystem, threadAttribs + j);
 				}
-				for(int j = 0; j < system.maxThreads; ++j)
+				for(int j = 0; j < threadCount; ++j)
 				{
 					pthread_join(threads[j], NULL);
 				}
