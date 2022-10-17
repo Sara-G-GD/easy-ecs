@@ -327,7 +327,7 @@ void ecsRunSystems(float deltaTime)
 	size_t entityCount = ecsEntities.size;
 	
 	pthread_t* threads = NULL;
-	ecsRunSystemArgs* threadAttribs = NULL;
+	ecsRunSystemArgs* threadArgs = NULL;
 	
 	for(size_t i = 0; i < ecsSystems.size; ++i)
 	{
@@ -374,20 +374,20 @@ void ecsRunSystems(float deltaTime)
 				// avoid creating more threads than there are matching entities
 				size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
 				threads = realloc(threads, threadCount * sizeof(pthread_t));
-				threadAttribs = realloc(threadAttribs, threadCount * sizeof(ecsRunSystemArgs));
+				threadArgs = realloc(threadArgs, threadCount * sizeof(ecsRunSystemArgs));
 				
 				// for each thread, create a runsystemargs instance describing it's area of influence
 				// then create the thread
 				size_t perThreadCount = total / threadCount;
 				for(int j = 0; j < threadCount; ++j)
 				{
-					threadAttribs[j].fn = system.fn;
-					threadAttribs[j].entities = entityList + perThreadCount * j;
-					threadAttribs[j].components = componentList + perThreadCount * j;
-					threadAttribs[j].count = perThreadCount;
-					threadAttribs[j].deltaTime = deltaTime;
+					threadArgs[j].fn = system.fn;
+					threadArgs[j].entities = entityList + perThreadCount * j;
+					threadArgs[j].components = componentList + perThreadCount * j;
+					threadArgs[j].count = perThreadCount;
+					threadArgs[j].deltaTime = deltaTime;
 					
-					pthread_create(threads + j, NULL, &ecsRunSystem, threadAttribs + j);
+					pthread_create(threads + j, NULL, &ecsRunSystem, threadArgs + j);
 				}
 				
 				// wait for completion of all threads
@@ -404,8 +404,8 @@ void ecsRunSystems(float deltaTime)
 	}
 	if(threads != NULL)
 		free(threads);
-	if(threadAttribs != NULL)
-		free(threadAttribs);
+	if(threadArgs != NULL)
+		free(threadArgs);
 	
 	ecsRunTasks();
 }
