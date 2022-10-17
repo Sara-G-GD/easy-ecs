@@ -334,17 +334,22 @@ void ecsRunSystems(float deltaTime)
 		system = ecsSystems.begin[i];
 		
 		// ECS_NOQUERY systems get run exactly once per ecsRunSystems call
+		// with entity and components arguments on NULL
+		// and count argument on 0
 		if(system.query.comparison == ECS_NOQUERY)
 		{
 			system.fn(NULL, NULL, 0, deltaTime);
 		}
 		else
 		{
+			// look for all entities matching the query
+			// first allocate entity and component lists the size of the number of entities
 			ecsEntityId* entityList = malloc((entityCount + 1) * sizeof(ecsEntityId));
 			ecsComponentMask* componentList = malloc((entityCount + 1) * sizeof(ecsComponentMask));
 			assert(entityList != NULL);
 			assert(componentList != NULL);
 
+			// then search for entities that match the query
 			size_t total = 0;
 			for(size_t j = 0; j < entityCount; ++j)
 			{
@@ -358,16 +363,21 @@ void ecsRunSystems(float deltaTime)
 				}
 			}
 			
+			// dont use threads
 			if(system.maxThreads <= 1)
 			{
 				system.fn(entityList, componentList, total, deltaTime);
 			}
+			// use threads
 			else
 			{
+				// avoid creating more threads than there are matching entities
 				size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
 				threads = realloc(threads, threadCount * sizeof(pthread_t));
 				threadAttribs = realloc(threadAttribs, threadCount * sizeof(ecsRunSystemArgs));
 				
+				// for each thread, create a runsystemargs instance describing it's area of influence
+				// then create the thread
 				size_t perThreadCount = total / threadCount;
 				for(int j = 0; j < threadCount; ++j)
 				{
@@ -379,12 +389,15 @@ void ecsRunSystems(float deltaTime)
 					
 					pthread_create(threads + j, NULL, &ecsRunSystem, threadAttribs + j);
 				}
+				
+				// wait for completion of all threads
 				for(int j = 0; j < threadCount; ++j)
 				{
 					pthread_join(threads[j], NULL);
 				}
 			}
 			
+			// clean up
 			free(entityList);
 			free(componentList);
 		}
