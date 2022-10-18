@@ -37,24 +37,6 @@ typedef struct ecsComponentQuery {
 	ecsComponentMask mask;
 } ecsComponentQuery;
 
-/**
- * \brief Structure to represent a task the ECS needs to perform after systems finish running.
- * \note Not every member is used by type and thus some might be able to be left uninitialized.
- */
-typedef struct ecsTask {
-	enum ECS_TASKTYPE {
-		ECS_ENTITY_DESTROY,			//! Uses .entity
-		ECS_COMPONENTS_DETACH,		//! Uses .entity and .components.mask
-		ECS_SYSTEM_CREATE,			//! Uses .system, .count and .components
-		ECS_SYSTEM_DESTROY,			//! Uses .system
-	} type;
-
-	ecsEntityId			entity;		//! relevant entity id
-	ecsSystemFn			system;		//! relevant system function pointer
-	int					count;		//! arbitrary int value
-	ecsComponentQuery	components;	//! relevant components
-} ecsTask;
-
 void ecsInit(void);
 
 /**
@@ -118,7 +100,7 @@ void ecsDetachComponents(ecsEntityId entity, ecsComponentMask components);
  * \note
  * When comparison=ECS_QUERY_ANY the system will run for all entities where any of the masked components are present.
  */
-void ecsEnableSystem(ecsSystemFn func, ecsComponentMask components, ecsQueryComparison comparison, int maxThreads);
+void ecsEnableSystem(ecsSystemFn func, ecsComponentMask components, ecsQueryComparison comparison, int maxThreads, int executionOrder);
 
 /**
  * \brief Disables a function acting as a system.
@@ -136,11 +118,6 @@ void ecsRunSystems(float deltaTime);
  * \brief Run queued tasks.
  */
 void ecsRunTasks(void);
-
-/**
- * \brief Push a task onto the task queue.
- */
-void ecsPushTask(ecsTask task);
 
 /**
  * \brief Terminate the ECS and clean up allocated resources.

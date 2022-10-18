@@ -17,7 +17,25 @@ typedef struct ECSsystem {
 	ecsSystemFn			fn;
 	ecsComponentQuery	query;
 	int					maxThreads;
+	int					execOrder;
 } ECSsystem;
+
+/**
+ * \brief Structure to represent a task the ECS needs to perform after systems finish running.
+ * \note Not every member is used by type and thus some might be able to be left uninitialized.
+ */
+typedef struct ecsTask {
+	enum ECS_TASKTYPE {
+		ECS_ENTITY_DESTROY,			//! Uses .entity
+		ECS_COMPONENTS_DETACH,		//! Uses .entity and .components.mask
+		ECS_SYSTEM_CREATE,			//! Uses .system and .components
+		ECS_SYSTEM_DESTROY,			//! Uses .system
+	} type;
+	
+	ecsEntityId			entity;		//! relevant entity id
+	ECSsystem			system;		//! relevant system function pointer
+	ecsComponentQuery	components;	//! relevant components
+} ecsTask;
 
 typedef struct ECSentityData {
 	ecsEntityId		id;
@@ -64,6 +82,7 @@ static inline ECSentityData* ecsFindEntityData(ecsEntityId id);
 static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id);
 static inline ECSsystem* ecsFindSystem(ecsSystemFn fn);
 static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id);
+void ecsPushTask(ecsTask task);
 
 
 ECSentityList		ecsEntities;
@@ -79,7 +98,7 @@ void ecsInit()
 
 	ecsEntities.nextValidId = 1;
 	ecsEntities.begin		= NULL;
-	ecsComponents.begin	= NULL;
+	ecsComponents.begin		= NULL;
 	ecsSystems.begin		= NULL;
 	ecsTasks.begin			= NULL;
 	ecsEntities.size = ecsComponents.size = ecsSystems.size = ecsTasks.size = 0;
@@ -144,6 +163,7 @@ void ecsSortComponents(ECScomponentType* type)
 	ecsEntityId entb;
 	void* temp = malloc(type->stride);
 	
+	// linear sort
 	do {
 		swaps = 0;
 		for(size_t i = 1; i < type->size; ++i)
@@ -153,7 +173,7 @@ void ecsSortComponents(ECScomponentType* type)
 			enta = *(ecsEntityId*)a;
 			entb = *(ecsEntityId*)b;
 			
-			if(enta < entb)
+			if(enta > entb)
 			{
 				swaps++;
 				memcpy(temp, b, type->stride);
@@ -410,16 +430,54 @@ void ecsRunSystems(float deltaTime)
 	ecsRunTasks();
 }
 
-void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison comp, int maxThreads)
-{ ecsPushTask((ecsTask){ .type=ECS_SYSTEM_CREATE, .system=fn, .count=maxThreads, .components=(ecsComponentQuery){ .mask=query, .comparison=comp} }); }
-void ecsTaskEnableSystem(ecsSystemFn fn, ecsComponentQuery query, int threads)
+void ecsSortSystems()
+{
+	int swaps;
+	ECSsystem tmp;
+	
+	do
+	{
+		swaps = 0;
+		for(int i = 1; i < ecsSystems.size; ++i)
+		{
+			if(ecsSystems.begin[i-1].execOrder > ecsSystems.begin[i].execOrder)
+			{
+				memcpy(&tmp, &ecsSystems.begin[i-1], sizeof(ECSsystem));
+				memcpy(&ecsSystems.begin[i-1], &ecsSystems.begin[i], sizeof(ECSsystem));
+				memcpy(&ecsSystems.begin[i], &tmp, sizeof(ECSsystem));
+				swaps++;
+			}
+		}
+	}
+	while(swaps > 0);
+}
+
+void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison comp, int maxThreads, int execOrder)
+{
+	ecsPushTask((ecsTask)
+	{
+		.type=ECS_SYSTEM_CREATE,
+		.system=(ECSsystem)
+		{
+			.fn = fn,
+			.maxThreads = maxThreads,
+			.execOrder = execOrder,
+			.query=(ecsComponentQuery)
+			{
+				.mask=query,
+				.comparison=comp
+			}
+		}
+	});
+}
+
+void ecsTaskEnableSystem(ECSsystem system)
 {
 	if(ecsResizeSystems(ecsSystems.size + 1))
 	{
 		ECSsystem* last = (ecsSystems.begin + ecsSystems.size - 1);
-		last->query = query;
-		last->fn = fn;
-		last->maxThreads = threads;
+		memcpy(last, &system, sizeof(ECSsystem));
+		ecsSortSystems();
 	}
 }
 
@@ -451,7 +509,7 @@ void ecsPushTask(ecsTask task)
 	}
 }
 
-void ecsRunTask(ecsTask task)
+static inline void ecsRunTask(ecsTask task)
 {
 	switch(task.type)
 	{
@@ -466,10 +524,10 @@ void ecsRunTask(ecsTask task)
 		return;
 		
 	case ECS_SYSTEM_CREATE:
-		ecsTaskEnableSystem(task.system, task.components, task.count);
+		ecsTaskEnableSystem(task.system);
 		return;
 	case ECS_SYSTEM_DESTROY:
-		ecsTaskDisableSystem(task.system);
+		ecsTaskDisableSystem(task.system.fn);
 		return;
 	}
 }
@@ -495,7 +553,7 @@ static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id)
 	return NULL;
 }
 
-static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
+void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 {
 	BYTE* sptr;
 	ecsEntityId* eptr;
