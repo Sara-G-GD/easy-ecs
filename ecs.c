@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <pthread.h>
+#include <stdint.h>
 
 typedef unsigned char BYTE;
 
