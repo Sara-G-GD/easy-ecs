@@ -239,9 +239,9 @@ void ecsDetachComponent(ecsEntityId e, ecsComponentMask c)
 
 	if(block == NULL) return;			// no component block for entity found
 	
-	void* last = (void*)((BYTE*)(ctype->begin) + (ctype->stride * (ctype->size - 1))); // pointer to last element
+	size_t lenafter = ctype->size * ctype->stride;
 	// move last element into to-be-destroyed element
-	memmove(block, last, ctype->stride);
+	memmove(block, block + ctype->stride, lenafter);
 	
 	// shorten array by one stride
 	ecsResizeComponentType(ctype, (ctype->size)-1);
@@ -268,7 +268,7 @@ ecsEntityId ecsCreateEntity(ecsComponentMask components)
 {
 	// register an id that is unique for the runtime of the ecs
 	ecsEntityId id = ecsEntities.nextValidId;
-	ecsEntities.nextValidId += 1;
+	ecsEntities.nextValidId++;
 	
 	// prepare values
 	ECSentityData entity = (ECSentityData) {
@@ -305,9 +305,9 @@ void ecsTaskDestroyEntity(ecsEntityId e)
 	ecsTaskDetachComponents(e, data->mask);
 	
 	// get the last element of the entities array
-	ECSentityData* last = (ecsEntities.begin + ecsEntities.size - 1);
+	size_t countAfter = data - ecsEntities.begin;
 	// copy last into to-be-deleted entity
-	memmove(data, last, sizeof(ECSentityData));
+	memmove(data, data+1, sizeof(ECSentityData) * countAfter);
 	// resize
 	ecsResizeEntities(ecsEntities.size - 1);
 }
