@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <pthread.h>
-#include <stdint.h>
 
 typedef unsigned char BYTE;
 
@@ -556,6 +555,8 @@ static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id)
 
 void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 {
+	if(type->size == 0) return NULL;
+
 	BYTE* sptr;
 	ecsEntityId* eptr;
 	size_t l = 0;
