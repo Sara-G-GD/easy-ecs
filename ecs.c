@@ -205,10 +205,10 @@ void ecsAttachComponent(ecsEntityId e, ecsComponentMask c)
 	
 	if(ecsResizeComponentType(ctype, ctype->size + 1))
 	{
-		BYTE* eid = (((BYTE*)ctype->begin) + ((ctype->size-1) * ctype->stride)); // get last item of the list as its entityId block
-		memset(eid, 0x0, ctype->stride);		// zero new component
-		memmove(eid, &e, sizeof(ecsEntityId));		// set entityId block
-		entity->mask |= c;						// register that component was added to entity
+		BYTE* eid = ((BYTE*)ctype->begin) + ((ctype->size-1) * ctype->stride); // get last item of the list as its entityId block
+		memset(eid, 0x0, ctype->stride);			// zero new component
+		memcpy(eid, &e, sizeof(ecsEntityId));		// set entityId block
+		entity->mask |= c;							// register that component was added to entity
 		ecsSortComponents(ctype);
 	}
 }
@@ -383,8 +383,10 @@ void ecsRunSystems(float deltaTime)
 				}
 			}
 			
+			size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
+
 			// dont use threads
-			if(system.maxThreads <= 1)
+			if(threadCount <= 1)
 			{
 				system.fn(entityList, componentList, total, deltaTime);
 			}
@@ -392,7 +394,6 @@ void ecsRunSystems(float deltaTime)
 			else
 			{
 				// avoid creating more threads than there are matching entities
-				size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
 				threads = realloc(threads, threadCount * sizeof(pthread_t));
 				threadArgs = realloc(threadArgs, threadCount * sizeof(ecsRunSystemArgs));
 				
@@ -562,6 +563,7 @@ void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 	size_t l = 0;
 	size_t r = type->size - 1;
 	size_t m;
+
 	while(l <= r)
 	{
 		m = floorf((float)(l+r)/2.f);
@@ -573,10 +575,13 @@ void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 			l = m + 1;
 		// go down
 		else if(*eptr > id)
+		{
+			if(r == 0) return NULL;
 			r = m - 1;
+		}
 		// found the correct component
 		else if(*eptr == id)
-			return sptr + sizeof(ecsEntityId);
+			return sptr;
 	}
 	return NULL;
 }
