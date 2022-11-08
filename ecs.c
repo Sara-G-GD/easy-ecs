@@ -17,7 +17,25 @@ typedef struct ECSsystem {
 	ecsSystemFn			fn;
 	ecsComponentQuery	query;
 	int					maxThreads;
+	int					execOrder;
 } ECSsystem;
+
+/**
+ * \brief Structure to represent a task the ECS needs to perform after systems finish running.
+ * \note Not every member is used by type and thus some might be able to be left uninitialized.
+ */
+typedef struct ecsTask {
+	enum ECS_TASKTYPE {
+		ECS_ENTITY_DESTROY,			//! Uses .entity
+		ECS_COMPONENTS_DETACH,		//! Uses .entity and .components.mask
+		ECS_SYSTEM_CREATE,			//! Uses .system and .components
+		ECS_SYSTEM_DESTROY,			//! Uses .system
+	} type;
+	
+	ecsEntityId			entity;		//! relevant entity id
+	ECSsystem			system;		//! relevant system function pointer
+	ecsComponentQuery	components;	//! relevant components
+} ecsTask;
 
 typedef struct ECSentityData {
 	ecsEntityId		id;
@@ -64,6 +82,7 @@ static inline ECSentityData* ecsFindEntityData(ecsEntityId id);
 static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id);
 static inline ECSsystem* ecsFindSystem(ecsSystemFn fn);
 static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id);
+void ecsPushTask(ecsTask task);
 
 
 ECSentityList		ecsEntities;
@@ -79,7 +98,7 @@ void ecsInit()
 
 	ecsEntities.nextValidId = 1;
 	ecsEntities.begin		= NULL;
-	ecsComponents.begin	= NULL;
+	ecsComponents.begin		= NULL;
 	ecsSystems.begin		= NULL;
 	ecsTasks.begin			= NULL;
 	ecsEntities.size = ecsComponents.size = ecsSystems.size = ecsTasks.size = 0;
@@ -144,6 +163,7 @@ void ecsSortComponents(ECScomponentType* type)
 	ecsEntityId entb;
 	void* temp = malloc(type->stride);
 	
+	// linear sort
 	do {
 		swaps = 0;
 		for(size_t i = 1; i < type->size; ++i)
@@ -153,7 +173,7 @@ void ecsSortComponents(ECScomponentType* type)
 			enta = *(ecsEntityId*)a;
 			entb = *(ecsEntityId*)b;
 			
-			if(enta < entb)
+			if(enta > entb)
 			{
 				swaps++;
 				memcpy(temp, b, type->stride);
@@ -185,10 +205,10 @@ void ecsAttachComponent(ecsEntityId e, ecsComponentMask c)
 	
 	if(ecsResizeComponentType(ctype, ctype->size + 1))
 	{
-		BYTE* eid = (((BYTE*)ctype->begin) + ((ctype->size-1) * ctype->stride)); // get last item of the list as its entityId block
-		memset(eid, 0x0, ctype->stride);		// zero new component
-		memmove(eid, &e, sizeof(ecsEntityId));		// set entityId block
-		entity->mask |= c;						// register that component was added to entity
+		BYTE* eid = ((BYTE*)ctype->begin) + ((ctype->size-1) * ctype->stride); // get last item of the list as its entityId block
+		memset(eid, 0x0, ctype->stride);			// zero new component
+		memcpy(eid, &e, sizeof(ecsEntityId));		// set entityId block
+		entity->mask |= c;							// register that component was added to entity
 		ecsSortComponents(ctype);
 	}
 }
@@ -219,9 +239,9 @@ void ecsDetachComponent(ecsEntityId e, ecsComponentMask c)
 
 	if(block == NULL) return;			// no component block for entity found
 	
-	void* last = (void*)((BYTE*)(ctype->begin) + (ctype->stride * (ctype->size - 1))); // pointer to last element
+	size_t lenafter = ctype->size * ctype->stride;
 	// move last element into to-be-destroyed element
-	memmove(block, last, ctype->stride);
+	memmove(block, block + ctype->stride, lenafter);
 	
 	// shorten array by one stride
 	ecsResizeComponentType(ctype, (ctype->size)-1);
@@ -248,7 +268,7 @@ ecsEntityId ecsCreateEntity(ecsComponentMask components)
 {
 	// register an id that is unique for the runtime of the ecs
 	ecsEntityId id = ecsEntities.nextValidId;
-	ecsEntities.nextValidId += 1;
+	ecsEntities.nextValidId++;
 	
 	// prepare values
 	ECSentityData entity = (ECSentityData) {
@@ -285,9 +305,9 @@ void ecsTaskDestroyEntity(ecsEntityId e)
 	ecsTaskDetachComponents(e, data->mask);
 	
 	// get the last element of the entities array
-	ECSentityData* last = (ecsEntities.begin + ecsEntities.size - 1);
+	size_t countAfter = data - ecsEntities.begin;
 	// copy last into to-be-deleted entity
-	memmove(data, last, sizeof(ECSentityData));
+	memmove(data, data+1, sizeof(ECSentityData) * countAfter);
 	// resize
 	ecsResizeEntities(ecsEntities.size - 1);
 }
@@ -363,8 +383,14 @@ void ecsRunSystems(float deltaTime)
 				}
 			}
 			
+			size_t threadCount = system.maxThreads;
+			if(threadCount > 0)
+				threadCount = threadCount > total ? total : threadCount;
+			else
+				threadCount = 1;
+
 			// dont use threads
-			if(system.maxThreads <= 1)
+			if(threadCount <= 1)
 			{
 				system.fn(entityList, componentList, total, deltaTime);
 			}
@@ -372,7 +398,6 @@ void ecsRunSystems(float deltaTime)
 			else
 			{
 				// avoid creating more threads than there are matching entities
-				size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
 				threads = realloc(threads, threadCount * sizeof(pthread_t));
 				threadArgs = realloc(threadArgs, threadCount * sizeof(ecsRunSystemArgs));
 				
@@ -410,16 +435,54 @@ void ecsRunSystems(float deltaTime)
 	ecsRunTasks();
 }
 
-void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison comp, int maxThreads)
-{ ecsPushTask((ecsTask){ .type=ECS_SYSTEM_CREATE, .system=fn, .count=maxThreads, .components=(ecsComponentQuery){ .mask=query, .comparison=comp} }); }
-void ecsTaskEnableSystem(ecsSystemFn fn, ecsComponentQuery query, int threads)
+void ecsSortSystems()
+{
+	int swaps;
+	ECSsystem tmp;
+	
+	do
+	{
+		swaps = 0;
+		for(int i = 1; i < ecsSystems.size; ++i)
+		{
+			if(ecsSystems.begin[i-1].execOrder > ecsSystems.begin[i].execOrder)
+			{
+				memcpy(&tmp, &ecsSystems.begin[i-1], sizeof(ECSsystem));
+				memcpy(&ecsSystems.begin[i-1], &ecsSystems.begin[i], sizeof(ECSsystem));
+				memcpy(&ecsSystems.begin[i], &tmp, sizeof(ECSsystem));
+				swaps++;
+			}
+		}
+	}
+	while(swaps > 0);
+}
+
+void ecsEnableSystem(ecsSystemFn fn, ecsComponentMask query, ecsQueryComparison comp, int maxThreads, int execOrder)
+{
+	ecsPushTask((ecsTask)
+	{
+		.type=ECS_SYSTEM_CREATE,
+		.system=(ECSsystem)
+		{
+			.fn = fn,
+			.maxThreads = maxThreads,
+			.execOrder = execOrder,
+			.query=(ecsComponentQuery)
+			{
+				.mask=query,
+				.comparison=comp
+			}
+		}
+	});
+}
+
+void ecsTaskEnableSystem(ECSsystem system)
 {
 	if(ecsResizeSystems(ecsSystems.size + 1))
 	{
 		ECSsystem* last = (ecsSystems.begin + ecsSystems.size - 1);
-		last->query = query;
-		last->fn = fn;
-		last->maxThreads = threads;
+		memcpy(last, &system, sizeof(ECSsystem));
+		ecsSortSystems();
 	}
 }
 
@@ -451,7 +514,7 @@ void ecsPushTask(ecsTask task)
 	}
 }
 
-void ecsRunTask(ecsTask task)
+static inline void ecsRunTask(ecsTask task)
 {
 	switch(task.type)
 	{
@@ -466,10 +529,10 @@ void ecsRunTask(ecsTask task)
 		return;
 		
 	case ECS_SYSTEM_CREATE:
-		ecsTaskEnableSystem(task.system, task.components, task.count);
+		ecsTaskEnableSystem(task.system);
 		return;
 	case ECS_SYSTEM_DESTROY:
-		ecsTaskDisableSystem(task.system);
+		ecsTaskDisableSystem(task.system.fn);
 		return;
 	}
 }
@@ -495,13 +558,16 @@ static inline ECScomponentType* ecsFindComponentType(ecsComponentMask id)
 	return NULL;
 }
 
-static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
+void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 {
+	if(type->size == 0) return NULL;
+
 	BYTE* sptr;
 	ecsEntityId* eptr;
 	size_t l = 0;
 	size_t r = type->size - 1;
 	size_t m;
+
 	while(l <= r)
 	{
 		m = floorf((float)(l+r)/2.f);
@@ -513,10 +579,13 @@ static inline void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 			l = m + 1;
 		// go down
 		else if(*eptr > id)
+		{
+			if(r == 0) return NULL;
 			r = m - 1;
+		}
 		// found the correct component
 		else if(*eptr == id)
-			return sptr + sizeof(ecsEntityId);
+			return sptr;
 	}
 	return NULL;
 }
