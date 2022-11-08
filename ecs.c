@@ -383,7 +383,11 @@ void ecsRunSystems(float deltaTime)
 				}
 			}
 			
-			size_t threadCount = system.maxThreads > total ? system.maxThreads : total;
+			size_t threadCount = system.maxThreads;
+			if(threadCount > 0)
+				threadCount = threadCount > total ? total : threadCount;
+			else
+				threadCount = 1;
 
 			// dont use threads
 			if(threadCount <= 1)
