@@ -404,13 +404,15 @@ void ecsRunSystems(float deltaTime)
 				
 				// for each thread, create a runsystemargs instance describing it's area of influence
 				// then create the thread
-				size_t perThreadCount = total / threadCount;
+				size_t perThreadCount = total - (total % (threadCount-1));
+				perThreadCount = perThreadCount / (threadCount-1);
+				size_t remainder = total % (threadCount-1);
 				for(int j = 0; j < threadCount; ++j)
 				{
 					threadArgs[j].fn = system.fn;
 					threadArgs[j].entities = entityList + perThreadCount * j;
 					threadArgs[j].components = componentList + perThreadCount * j;
-					threadArgs[j].count = perThreadCount;
+					threadArgs[j].count = (j == threadCount-1) ? remainder : perThreadCount;
 					threadArgs[j].deltaTime = deltaTime;
 					
 					pthread_create(threads + j, NULL, &ecsRunSystem, threadArgs + j);
