@@ -240,12 +240,14 @@ void ecsDetachComponent(ecsEntityId e, ecsComponentMask c)
 
 	if(block == NULL) return;			// no component block for entity found
 	
-	size_t lenafter = ctype->size * ctype->stride;
+	uintptr_t lenafter = (uintptr_t)(((BYTE*)ctype->begin + ctype->size * ctype->stride) - (BYTE*)block);
+	lenafter -= ctype->stride;
 	// move last element into to-be-destroyed element
 	memmove(block, block + ctype->stride, lenafter);
 	
 	// shorten array by one stride
 	ecsResizeComponentType(ctype, (ctype->size)-1);
+	entity->mask &= ~c;
 }
 
 void ecsDetachComponents(ecsEntityId e, ecsComponentMask c)
@@ -306,9 +308,12 @@ void ecsTaskDestroyEntity(ecsEntityId e)
 	ecsTaskDetachComponents(e, data->mask);
 	
 	// get the last element of the entities array
-	size_t countAfter = data - ecsEntities.begin;
+	uintptr_t countAfter = (uintptr_t)((ecsEntities.begin + ecsEntities.size) - data);
+	assert(countAfter < ecsEntities.size);
+	printf("%zu\n", countAfter);
 	// copy last into to-be-deleted entity
 	memmove(data, data+1, sizeof(ECSentityData) * countAfter);
+
 	// resize
 	ecsResizeEntities(ecsEntities.size - 1);
 }
@@ -573,7 +578,7 @@ void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 
 	while(l <= r)
 	{
-		m = floorf((float)(l+r)/2.f);
+		m = round((double)(l+r)/2.f);
 		sptr = ((BYTE*)type->begin) + m * type->stride; // median element
 		eptr = sptr;
 		
@@ -582,10 +587,7 @@ void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 			l = m + 1;
 		// go down
 		else if(*eptr > id)
-		{
-			if(r == 0) return NULL;
 			r = m - 1;
-		}
 		// found the correct component
 		else if(*eptr == id)
 			return sptr;
@@ -688,6 +690,7 @@ static inline int ecsResizeComponentType(ECScomponentType* type, size_t size)
 	else
 	{
 		void* nptr = realloc(type->begin, size * (type->stride));
+		assert(nptr != NULL);
 		if(nptr == NULL) return 0;
 		
 		type->size = size;
