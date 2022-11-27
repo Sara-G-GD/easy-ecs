@@ -310,7 +310,6 @@ void ecsTaskDestroyEntity(ecsEntityId e)
 	// get the last element of the entities array
 	uintptr_t countAfter = (uintptr_t)((ecsEntities.begin + ecsEntities.size) - data);
 	assert(countAfter < ecsEntities.size);
-	printf("%zu\n", countAfter);
 	// copy last into to-be-deleted entity
 	memmove(data, data+1, sizeof(ECSentityData) * countAfter);
 
