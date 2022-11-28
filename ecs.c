@@ -297,6 +297,11 @@ ecsEntityId ecsGetComponentMask(ecsEntityId entity)
 	return data != NULL ? data->mask : nocomponent;
 }
 
+int ecsValidEntity(ecsEntityId entity)
+{
+	return ecsFindEntityData(entity) != NULL;
+}
+
 void ecsDestroyEntity(ecsEntityId e)
 { ecsPushTask((ecsTask){.type=ECS_ENTITY_DESTROY, .entity=e}); }
 void ecsTaskDestroyEntity(ecsEntityId e)

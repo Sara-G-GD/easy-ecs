@@ -71,6 +71,13 @@ ecsEntityId ecsCreateEntity(ecsComponentMask components);
 ecsEntityId ecsGetComponentMask(ecsEntityId entity);
 
 /**
+ * \brief Checks if the argument is a valid entity id of a currently existing entity.
+ * \param entity The entity to check the validity of.
+ * \returns 1 if the entity exists, 0 otherwise.
+ */
+int ecsValidEntity(ecsEntityId entity);
+
+/**
  * \brief Destroys an entity and all associated components
  * \param entity The id of the entity to destroy.
  */
