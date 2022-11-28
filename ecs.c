@@ -497,13 +497,14 @@ void ecsDisableSystem(ecsSystemFn fn)
 { ecsPushTask((ecsTask){ .type=ECS_SYSTEM_DESTROY, .system=fn }); }
 void ecsTaskDisableSystem(ecsSystemFn fn)
 {
-	BYTE* dst = ecsFindSystem(fn);
-	if(dst == NULL) return; // system not enabled
-	
-	BYTE* start = dst + sizeof(ECSsystem);
-	BYTE* end = ecsSystems.begin + (ecsSystems.size - 1) * sizeof(ECSsystem); // the last item in the systems array
-	size_t size = (uintptr_t)end - (uintptr_t)start;
-	memmove(dst, start, size);
+	// calculate distance between end and to replace
+	ECSsystem* to_replace = ecsFindSystem(fn);
+	ECSsystem* end = ecsSystems.begin + ecsSystems.size;
+	size_t dist = (end - to_replace) - 1;
+
+	// shift everything after to-be-deleted item back by one (overwriting to-be-deleted)
+	memmove(to_replace, to_replace + 1, dist * sizeof(ECSsystem));
+
 	// resize array
 	ecsResizeSystems(ecsSystems.size - 1);
 }
