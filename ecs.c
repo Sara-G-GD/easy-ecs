@@ -310,7 +310,6 @@ void ecsTaskDestroyEntity(ecsEntityId e)
 	// get the last element of the entities array
 	uintptr_t countAfter = (uintptr_t)((ecsEntities.begin + ecsEntities.size) - data);
 	assert(countAfter < ecsEntities.size);
-	printf("%zu\n", countAfter);
 	// copy last into to-be-deleted entity
 	memmove(data, data+1, sizeof(ECSentityData) * countAfter);
 
@@ -572,25 +571,25 @@ void* ecsFindComponentFor(ECScomponentType* type, ecsEntityId id)
 
 	BYTE* sptr;
 	ecsEntityId* eptr;
-	size_t l = 0;
-	size_t r = type->size - 1;
-	size_t m;
+	int l = 0;
+	int r = type->size - 1;
+	int m;
 
 	while(l <= r)
 	{
 		m = round((double)(l+r)/2.f);
 		sptr = ((BYTE*)type->begin) + m * type->stride; // median element
 		eptr = sptr;
-		
+
+		// found the correct component
+		if(*eptr == id)
+			return sptr;
 		// go up
-		if(*eptr < id)
+		else if(*eptr < id)
 			l = m + 1;
 		// go down
 		else if(*eptr > id)
 			r = m - 1;
-		// found the correct component
-		else if(*eptr == id)
-			return sptr;
 	}
 	return NULL;
 }
